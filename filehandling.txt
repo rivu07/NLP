@@ -1,0 +1,68 @@
+import json
+import csv
+import pandas as pd
+
+def feeds_input(json_filename,csv_filename):   
+    with open(json_filename,encoding='utf-8') as f:
+        fc=f.read()
+        fc1=fc.replace('}\n{','},{')
+        data=json.loads(f'[{fc1}]')
+
+
+    data_vector = {"id":[],"tweet":[]}
+
+    for i in range(len(data)):
+        data_vector["id"].append(data[i]["id"])
+        data_vector["tweet"].append(data[i]["text"][:200])
+
+
+    df = pd.DataFrame(data_vector)
+    print(df['id'])
+    df.to_csv(csv_filename,index=False)
+    f.close()
+
+
+    
+def labels_input(json_filename,csv_filename):   
+
+    with open(json_filename,encoding='utf-8') as f:
+        fc=f.read()
+        fc1=fc.replace('}\n{','},{')
+        data=json.loads(f'[{fc1}]')
+
+    
+    data_vector = {"id":[],"occ":[],"gen":[],"fame":[],"by":[]}
+
+    for i in range(len(data)):
+        data_vector["id"].append(data[i]["id"])
+        data_vector["occ"].append(data[i]["occupation"])
+        data_vector["gen"].append(data[i]["gender"])
+        data_vector["fame"].append(data[i]["fame"])
+        data_vector["by"].append(data[i]["birthyear"])
+
+    df=pd.DataFrame(data_vector)
+    df.to_csv(csv_filename,index=False)
+    f.close()
+
+def tally_feeds_labels(feeds,labels,labelfile):
+    fds = pd.read_csv(feeds)
+    lbl = pd.read_csv(labels)
+    lbl = lbl[lbl['id'].isin(fds['id'])]
+    lbl["id"] = pd.Categorical(lbl["id"],fds["id"])
+    lbl.sort_values("id",inplace=True)
+    lbl["id"]=lbl["id"].astype("int64")
+
+    lbl.to_csv(labelfile,index=False)
+    
+
+feed_json = input("Enter the feed json file: ")
+label_json = input("Enter the label json file: ")
+
+feed_csv = input("Enter the file name for feed.csv file: ")
+label_csv = input("Enter the file name for label.csv file: ")
+
+feeds_input(feed_json,feed_csv)
+labels_input(label_json,"labels_temp.csv")
+tally_feeds_labels(feed_csv,"labels_temp.csv",label_csv)
+
+print("A labels_temp.csv file has been generated.")

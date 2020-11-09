@@ -1,0 +1,412 @@
+import json
+import csv
+import re
+import string
+import nltk
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.metrics import accuracy_score,confusion_matrix,classification_report
+from sklearn.model_selection import train_test_split
+from scipy.stats import kurtosis
+from lexicalrichness import LexicalRichness
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.metrics import accuracy_score,classification_report
+import math
+from sklearn import svm
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from lexicalrichness import LexicalRichness
+from scipy.stats import skew,kurtosis
+import numpy as np
+from scipy.sparse import coo_matrix,hstack
+
+
+MAX_WORD_FEATURES = 10000
+MAX_TWEET_PER_USER = 500
+FLAGGG = True #not to add extra features ? add extra features
+
+#regular expressions
+smile_re = re.compile("(:\)|;\)|:-\)|;-\)|:\(|:-\(|:-o|:o|<3)")
+emoji_re = re.compile("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
+not_ascii_re = re.compile("([^\x00-\x7F]+)")
+url_re = re.compile("https?[\S]*")
+mention_re = re.compile("@[\w]*[\W\s]")
+hashtag_re = re.compile("#[\w]*[\W]")
+numbers_re = re.compile("[\d]+")
+id_re = re.compile("\"id\":\s[\d]*}")
+symbols_re = re.compile("[!?:*+\[\]\\\/.'\":;,\_()%$#@!]")
+dash_re = re.compile("[\s]+-[\s]+")
+extraspace_re = re.compile("\s+")
+retweet_re = re.compile("[\s]RT[\s]")
+
+
+#file input
+class Task:
+    def __init__(self):
+
+        print(f"With FLAGGG: {FLAGGG}")
+        self.input()
+        self.data_feeds["processed_tweet"]=self.data_feeds["tweet"].apply(self.feeds_preprocess)
+        # making self_made_features of the training_data
+        self.data_feeds = pd.concat([self.data_feeds,self.data_feeds["processed_tweet"].apply(self.feature_processing,1)],axis=1)
+        self.data = pd.merge(self.data_feeds,self.data_labels,left_on = 'id',right_on = 'id')
+        
+
+        self.test_feeds_1["processed_tweet"]=self.test_feeds_1["tweet"].apply(self.feeds_preprocess)
+        # making self_made_features of the training_data
+        self.test_feeds_1 = pd.concat([self.test_feeds_1,self.test_feeds_1["processed_tweet"].apply(self.feature_processing,1)],axis=1)
+        test_1 = pd.merge(self.test_feeds_1,self.test_labels_1,left_on = 'id',right_on = 'id')
+    
+        
+
+        self.test_feeds_2["processed_tweet"]=self.test_feeds_2["tweet"].apply(self.feeds_preprocess)
+        # making self_made_features of the training_data
+        self.test_feeds_2 = pd.concat([self.test_feeds_2,self.test_feeds_2["processed_tweet"].apply(self.feature_processing,1)],axis=1)
+        test_2 = pd.merge(self.test_feeds_2,self.test_labels_2,left_on = 'id',right_on = 'id')
+
+
+
+        da = [test_1,test_2]
+
+        for i in da:
+            self.data_processing(i)
+
+            
+            
+            if FLAGGG == True:
+                # making Tfidf features of the train_data
+                vectorizor = TfidfVectorizer(ngram_range=(1,2),max_features=MAX_WORD_FEATURES, analyzer='word',  min_df=0.1,max_df=0.8)
+                trained_features = vectorizor.fit_transform(self.X_train["processed_tweet"])
+                transformer = TfidfTransformer()
+                #self.X_train_features = vectorizor.fit_transform(self.X_train["processed_tweet"])
+                self.X_train_features = transformer.fit_transform(trained_features)
+                #print(vectorizor.get_feature_names())
+                self.test_features = vectorizor.transform(self.X_test["processed_tweet"])
+                self.X_test_features = transformer.transform(self.test_features)
+                #print(self.X_train_features)
+                #print(self.X_train_features.size)
+
+                #print(self.y_test.columns)
+                #print(self.y_test.head)
+
+
+            else:
+                # making Tfidf features of the train_data
+                vectorizor = TfidfVectorizer(ngram_range=(1,2),max_features=MAX_WORD_FEATURES, analyzer='word',  min_df=0.1,max_df=0.8)
+                trained_features = vectorizor.fit_transform(self.X_train["processed_tweet"])
+                transformer = TfidfTransformer()
+                self.X_train_features = transformer.fit_transform(trained_features)
+                A = coo_matrix(self.X_train_features)
+                self.X_train=self.X_train.drop("processed_tweet",axis=1)
+                B=coo_matrix(self.X_train)
+                self.X_train=hstack([A,B]).toarray()
+                '''print(self.X_train.size)'''
+                #print(self.X_train.columns)
+                #print(self.X_train.head)
+                #print(vectorizor.get_feature_names())
+                test_features = vectorizor.transform(self.X_test["processed_tweet"])
+                self.X_test_features = transformer.transform(test_features)
+                A1 = coo_matrix(self.X_test_features)
+                self.X_test=self.X_test.drop("processed_tweet",axis=1)
+                B1=coo_matrix(self.X_test)
+                self.X_test=hstack([A1,B1]).toarray()
+                '''print(self.X_test.size)
+                print(self.X_test.columns)
+                print(self.X_test.head)'''
+
+                
+                
+
+            print(1)
+            labels = ["occ","gen","modified_year","fame"]
+
+            for label in labels:
+                self.logistic_regression_model(label)
+                #self.svm_model(label)
+                #self.rf_model(label)
+                #self.dt_model(label)
+                #self.knn_model(label)
+
+        #self.featuring()
+
+        
+    def input(self):
+        '''self.data_feeds = pd.read_csv("feeds.csv",engine='python', error_bad_lines=False) #last past is to deal with unprintible characters
+        #print(self.data_feeds.head)
+        self.data_labels = pd.read_csv("label.csv")'''
+
+
+        
+        self.data_feeds=pd.read_csv("train.csv",engine='python', error_bad_lines=False)
+        self.data_labels=pd.read_csv("labeltr.csv",engine='python', error_bad_lines=False)
+
+        self.test_feeds_1=pd.read_csv("test.csv",engine='python', error_bad_lines=False)
+        self.test_labels_1=pd.read_csv("ltest.csv",engine='python', error_bad_lines=False)
+
+        self.test_feeds_2=pd.read_csv("test.csv",engine='python', error_bad_lines=False)
+        self.test_labels_2=pd.read_csv("ltest.csv",engine='python', error_bad_lines=False)
+        
+
+
+    def feeds_preprocess(self,profile):
+        tweets = profile.split("\', \'")
+        processed_tweets=[]
+        count=0
+        for tweet in tweets:
+            tweet = tweet.replace("\\n","")
+            tweet = re.sub(smile_re," <EMOTICON> ",tweet)
+            tweet = re.sub(emoji_re," <EMOJI> ",tweet)
+            tweet = re.sub(not_ascii_re," ",tweet)
+            tweet = re.sub(url_re," <URL> ",tweet)
+            tweet = re.sub(mention_re," <USER> ",tweet)
+            tweet = re.sub(hashtag_re," <HASHTAG> ",tweet)
+            tweet = re.sub(numbers_re," <NUMBERS> ",tweet)   #keep this if u want to tag numericals as <NUMBERS>
+            tweet = re.sub(id_re,"",tweet)
+            tweet = re.sub(symbols_re," ",tweet)
+            tweet = re.sub(dash_re,"",tweet)
+            #tweet = re.sub(retweet_re," ",tweet)
+            processed_tweets.append(tweet)
+            if count<MAX_TWEET_PER_USER:
+                count+=1
+            else:
+                break
+            
+        concat_tweets =""
+        for tweet in processed_tweets:
+            concat_tweets = concat_tweets +" <SEP> " + tweet
+        concat_tweets = re.sub(extraspace_re," ",concat_tweets)
+        return concat_tweets
+
+
+    def feature_processing(self,profile):
+        #print(profile)
+        tweets = profile.split("<SEP>")
+        no_of_tweets = len(tweets)
+        #print(tweets)
+        feature_vector=[]
+        ###code for average word per tweet per profile###
+        avg_word = 0
+        no_of_word = 0
+        tot_emoji = 0
+        tot_hashtag = 0
+        tot_mention = 0
+        tot_url = 0
+        avg_word_len = 0
+        tot_rt = 0
+
+        raw_text = ""
+
+        stat_no_of_word = []
+        stat_avg_word = []
+
+        
+        for tweet in tweets:
+            tot_word_len=0
+            no_of_word_temp=0
+            tokenized_words=nltk.word_tokenize(tweet)
+            for word in tokenized_words:                
+                if word != "SEP" and word!="NUMBERS" and word != "<" and word != ">" and word != "EMOTICON" and word != "EMOJI" and word != "URL" and word != "HASHTAG" and word != "USER" and word != "RT":
+                    tot_word_len += len(word)
+                    no_of_word += 1
+                    no_of_word_temp += 1
+                    raw_text = raw_text + word
+                if word == "EMOTICON" or word == "EMOJI":
+                    tot_emoji += 1
+                if word == "HASHTAG" :
+                    tot_hashtag += 1
+                if word == "USER" :
+                    tot_mention += 1
+                if word == "URL" :
+                    tot_url += 1
+                if word == "RT" :
+                    tot_rt += 1
+            if no_of_word_temp>0:
+                avg_word_len += tot_word_len/no_of_word_temp
+                stat_no_of_word.append(no_of_word_temp)
+                stat_avg_word.append(avg_word_len)
+                
+        avg_word_len_per_tweet = avg_word_len/(no_of_tweets)
+        feature_vector.append(avg_word_len_per_tweet)
+
+        avg_emoji_per_tweet = tot_emoji/(no_of_tweets)
+        feature_vector.append(avg_emoji_per_tweet)
+
+        avg_hashtag_per_tweet = tot_hashtag/(no_of_tweets)
+        feature_vector.append(avg_hashtag_per_tweet)
+
+        avg_mention_per_tweet = tot_mention/(no_of_tweets)
+        feature_vector.append(avg_mention_per_tweet)
+
+        avg_url_per_tweet = tot_url/(no_of_tweets)
+        feature_vector.append(avg_url_per_tweet)
+
+        avg_rt_per_tweet = tot_rt/(no_of_tweets)
+        feature_vector.append(avg_rt_per_tweet)
+
+        avg_no_of_word_per_tweet = no_of_word/(no_of_tweets)
+        feature_vector.append(avg_no_of_word_per_tweet)
+
+        kurtosis_avg_word = kurtosis(stat_avg_word)
+        feature_vector.append(kurtosis_avg_word)
+        
+        kurtosis_no_of_word = kurtosis(stat_no_of_word)
+        feature_vector.append(kurtosis_no_of_word)
+
+        skew_avg_word = skew(stat_avg_word)
+        feature_vector.append(skew_avg_word)
+
+        skew_no_of_word = skew(stat_no_of_word)
+        feature_vector.append(skew_no_of_word)
+
+        lex=LexicalRichness(raw_text)
+        if lex.words!=0:
+          feature_vector.append(lex.ttr)
+        else:
+          feature_vector.append(0)
+
+        x = pd.Series(feature_vector)
+        return x
+        
+
+
+    def data_processing(self,test_data):
+
+
+        self.data["modified_year"]=self.data["by"].apply(self.year_modification)
+
+        test_data["modified_year"]=test_data["by"].apply(self.year_modification)
+
+
+        if FLAGGG==True:
+            X = self.data[["processed_tweet"]]
+            self.X_test = test_data[["processed_tweet"]]
+        else:
+            X = self.data[["processed_tweet",0,1,2,3,4,5,6,7,8,9,10,11]]
+            self.X_test = test_data[["processed_tweet",0,1,2,3,4,5,6,7,8,9,10,11]]
+        #X = self.data["self_made_features"]
+        
+        Y = self.data[["occ","gen","fame","modified_year"]]
+        self.y_test = test_data[["occ","gen","fame","modified_year"]]
+
+        self.X_train = X
+        self.y_train = Y
+        #self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(X,Y,test_size=0.3, random_state=0)
+        return
+
+
+    def year_modification(self,year):
+        if year<=1955:
+            return 1947
+        if year<=1969:
+            return 1963
+        if year<=1980:
+            return 1975
+        if year<=1990:
+            return 1985
+        if year<=1997:
+            return 1993
+        if year<=2004:
+            return 2001
+        if year<=2009:
+            return 2007
+        if year<=2020:
+            return 2011
+
+    #def featuring(self,data):
+
+    def logistic_regression_model(self,label):
+        print("LR: ")
+        model = LogisticRegression(multi_class='multinomial', solver="newton-cg")
+        if FLAGGG==True:
+            #print(self.X_train_features.size())
+            #print(self.y_train[label].size())
+
+            model.fit(self.X_train_features,self.y_train[label])
+            predicted = model.predict(self.X_test_features)
+            accuracy = accuracy_score(self.y_test[label],predicted,normalize=True, sample_weight=None)
+            print(f"{label} accuracy: {accuracy}")
+            f1 = classification_report(self.y_test[label], predicted)
+        
+
+        else:
+            model.fit(self.X_train,self.y_train[label])
+            predicted = model.predict(self.X_test)
+            f1 = classification_report(self.y_test[label], predicted)
+        
+        print(f1)
+        return
+
+    def svm_model(self,label):
+        print("SVM: ")
+        model = svm.LinearSVC()
+        if FLAGGG==True:
+            model.fit(self.X_train_features,self.y_train[label])
+            predicted = model.predict(self.X_test_features)
+            f1 = classification_report(self.y_test[label],predicted)
+
+        else:
+            model.fit(self.X_train,self.y_train[label])
+            predicted = model.predict(self.X_test)
+            f1 = classification_report(self.y_test[label], predicted)
+        
+        print(f1)
+        return
+
+    def rf_model(self,label):
+        print("RF: ")
+        model = RandomForestClassifier(max_depth=2)
+        if FLAGGG==True:
+            model.fit(self.X_train_features,self.y_train[label])
+            predicted = model.predict(self.X_test_features)
+            f1 = classification_report(self.y_test[label],predicted)
+
+        else:
+            model.fit(self.X_train,self.y_train[label])
+            predicted = model.predict(self.X_test)
+            f1 = classification_report(self.y_test[label], predicted)
+            
+        print(f1)
+        return
+
+    def dt_model(self,label):
+        print("DT: ")
+        model = DecisionTreeClassifier()
+        if FLAGGG==True:
+            model.fit(self.X_train_features,self.y_train[label])
+            predicted = model.predict(self.X_test_features)
+            f1 = classification_report(self.y_test[label],predicted)
+
+        else:
+            model.fit(self.X_train,self.y_train[label])
+            predicted = model.predict(self.X_test)
+            f1 = classification_report(self.y_test[label], predicted)
+            
+        print(f1)
+        return
+
+    
+    def knn_model(self,label):
+
+        print("KNN: ")
+        model = KNeighborsClassifier(n_neighbors=5)
+        if FLAGGG==True:
+            model.fit(self.X_train_features,self.y_train[label])
+            predicted = model.predict(self.X_test_features)
+            f1 = classification_report(self.y_test[label],predicted)
+
+        else:
+            model.fit(self.X_train,self.y_train[label])
+            predicted = model.predict(self.X_test)
+            f1 = classification_report(self.y_test[label], predicted)
+            
+        print(f1)
+        return
+
+t = Task()
+FLAGGG = False
+t2= Task()
